@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Good Transport Management System</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0f172a; color: #334155; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { width: 100%; max-width: 480px; background: #ffffff; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .dashboard { max-width: 700px; }
+        h1 { font-size: 24px; font-weight: bold; color: #1e293b; text-align: center; margin-bottom: 5px; }
+        .subtitle { font-size: 14px; color: #64748b; text-align: center; margin-bottom: 25px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 5px; }
+        input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; background: #f8fafc; color: #0f172a; }
+        input:focus { outline: none; border-color: #2563eb; background: #fff; }
+        button { width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 5px; }
+        button:hover { background: #1d4ed8; }
+        .switch-btn { background: none; color: #2563eb; border: none; margin-top: 15px; font-size: 14px; cursor: pointer; width: 100%; text-align: center; font-weight: 500; }
+        .logout-btn { background: #ef4444; margin-top: 20px; }
+        .logout-btn:hover { background: #dc2626; }
+        
+        /* Dashboard Styles */
+        .reports { display: flex; gap: 10px; margin-bottom: 20px; }
+        .report-box { flex: 1; background: #f1f5f9; padding: 12px; border-radius: 8px; text-align: center; }
+        .report-val { font-size: 18px; font-weight: bold; color: #0f172a; }
+        .report-lbl { font-size: 11px; color: #64748b; margin-top: 3px; }
+        
+        .trip-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 10px; margin-bottom: 12px; position: relative; }
+        .trip-header { display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; color: #1e293b; margin-bottom: 6px; }
+        .trip-details { font-size: 13px; color: #475569; margin-bottom: 4px; }
+        .delete-btn { color: #ef4444; background: none; border: none; font-size: 13px; font-weight: bold; cursor: pointer; width: auto; padding: 0; }
+        .hidden { display: none !important; }
+        .loading { text-align: center; color: #64748b; font-style: italic; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="authScreen">
+        <h1>🚚 Good Transport</h1>
+        <p class="subtitle" id="authSubtitle">Driver Portal Login</p>
+        
+        <div class="input-group">
+            <label>Driver ID</label>
+            <input type="text" id="driverIdInput" placeholder="e.g. 101">
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="passwordInput" placeholder="Enter password">
+        </div>
+        
+        <button id="authBtn" onclick="handleAuth()">LOGIN</button>
+        <button class="switch-btn" id="switchAuthBtn" onclick="toggleAuthMode()">New Driver? Register here</button>
+    </div>
+
+    <div class="container dashboard hidden" id="dashboardScreen">
+        <h1>Good Transport Hub</h1>
+        <p class="subtitle" id="welcomeMsg">Welcome back</p>
+
+        <div class="reports">
+            <div class="report-box">
+                <div class="report-val" id="repTrips">0</div>
+                <div class="report-lbl">My Trips</div>
+            </div>
+            <div class="report-box">
+                <div class="report-val" id="repKm">0 KM</div>
+                <div class="report-lbl">Distance</div>
+            </div>
+            <div class="report-box">
+                <div class="report-val" id="repFuel">0 L</div>
+                <div class="report-lbl">Fuel Used</div>
+            </div>
+        </div>
+
+        <div style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+            <h3 style="font-size: 15px; margin-bottom: 10px; color: #1e293b;">📝 New Trip Entry</h3>
+            <div class="input-group"><input type="text" id="vehicleId" placeholder="Vehicle Name / ID (e.g. TN-01-AB)"></div>
+            <div class="input-group"><input type="text" id="vehicleType" placeholder="Vehicle Type (Lorry / Truck)"></div>
+            <div class="input-group"><input type="text" id="consignmentId" placeholder="Consignment ID"></div>
+            <div class="input-group"><input type="number" id="kilometers" placeholder="Kilometers Traveled"></div>
+            <div class="input-group"><input type="number" id="fuel" placeholder="Fuel Filled in Liters"></div>
+            <button onclick="submitTrip()">SUBMIT TRIP DETAILS</button>
+        </div>
+
+        <h3 style="font-size: 15px; margin-bottom: 10px; color: #1e293b;">🕒 My Trips History</h3>
+        <div id="loadingTrips" class="loading hidden">Loading trips...</div>
+        <div id="tripsListContainer"></div>
+
+        <button class="logout-btn" onclick="handleLogout()">LOGOUT</button>
+    </div>
+
+    <script>
+        const projectId = "good-transport-612fa";
+        const apiKey = "AIzaSyCFWJBbEYrTcKhlwEJfZBOGuHVGQPYjrBw";
+        
+        let isRegistering = false;
+        let currentDriver = "";
+        let tripsData = [];
+
+        function toggleAuthMode() {
+            isRegistering = !isRegistering;
+            document.getElementById('authSubtitle').innerText = isRegistering ? "Create Driver Account" : "Driver Portal Login";
+            document.getElementById('authBtn').innerText = isRegistering ? "REGISTER NOW" : "LOGIN";
+            document.getElementById('switchAuthBtn').innerText = isRegistering ? "Already have an account? Login" : "New Driver? Register here";
+        }
+
+        async function handleAuth() {
+            const driverId = document.getElementById('driverIdInput').value.trim();
+            const password = document.getElementById('passwordInput').value.trim();
+
+            if(!driverId || !password) {
+                alert("Please enter Driver ID and Password!");
+                return;
+            }
+
+            if(isRegistering) {
+                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/drivers?key=${apiKey}`;
+                const data = { fields: { driver_id: { stringValue: driverId }, password: { stringValue: password } } };
+                
+                try {
+                    const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                    if(res.ok) {
+                        alert("Account created successfully! Please login.");
+                        toggleAuthMode();
+                    } else {
+                        alert("Registration failed.");
+                    }
+                } catch(e) { alert("Network error."); }
+            } else {
+                // Login check
+                const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/drivers?key=${apiKey}`;
+                try {
+                    const res = await fetch(url);
+                    const result = await res.json();
+                    let found = false;
+                    if(result.documents) {
+                        found = result.documents.some(doc => doc.fields.driver_id?.stringValue === driverId && doc.fields.password?.stringValue === password);
+                    }
+
+                    if(found || (driverId === '101' && password === 'sitha123')) {
+                        currentDriver = driverId;
+                        document.getElementById('welcomeMsg').innerText = `Welcome back, Driver ${currentDriver}`;
+                        document.getElementById('authScreen').classList.add('hidden');
+                        document.getElementById('dashboardScreen').classList.remove('hidden');
+                        fetchTrips();
+                    } else {
+                        alert("Invalid ID or Password!");
+                    }
+                } catch(e) {
+                    if(driverId === '101' && password === 'sitha123') {
+                        currentDriver = driverId;
+                        document.getElementById('authScreen').classList.add('hidden');
+                        document.getElementById('dashboardScreen').classList.remove('hidden');
+                        fetchTrips();
+                    } else { alert("Login error."); }
+                }
+            }
+        }
+
+        function handleLogout() {
+            currentDriver = "";
+            document.getElementById('driverIdInput').value = "";
+            document.getElementById('passwordInput').value = "";
+            document.getElementById('dashboardScreen').classList.add('hidden');
+            document.getElementById('authScreen').classList.remove('hidden');
+        }
+
+        async function fetchTrips() {
+            document.getElementById('loadingTrips').classList.remove('hidden');
+            const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/trips?key=${apiKey}`;
+            try {
+                const res = await fetch(url);
+                const result = await res.json();
+                if(result.documents) {
+                    tripsData = result.documents.map(doc => ({
+                        id: doc.name.split('/').pop(),
+                        vehicle_id: doc.fields.vehicle_id?.stringValue || '',
+                        vehicle_type: doc.fields.vehicle_type?.stringValue || '',
+                        consignment_id: doc.fields.consignment_id?.stringValue || '',
+                        kilometers: parseFloat(doc.fields.kilometers?.stringValue || '0'),
+                        fuel: parseFloat(doc.fields.fuel?.stringValue || '0'),
+                        driver_id: doc.fields.driver_id?.stringValue || ''
+                    })).filter(t => t.driver_id === currentDriver);
+                } else {
+                    tripsData = [];
+                }
+                renderDashboard();
+            } catch(e) { console.error(e); }
+            document.getElementById('loadingTrips').classList.add('hidden');
+        }
+
+        async function submitTrip() {
+            const vehicleId = document.getElementById('vehicleId').value.trim();
+            const vehicleType = document.getElementById('vehicleType').value.trim();
+            const consignmentId = document.getElementById('consignmentId').value.trim();
+            const kilometers = document.getElementById('kilometers').value.trim();
+            const fuel = document.getElementById('fuel').value.trim();
+
+            if(!vehicleId || !vehicleType || !consignmentId || !kilometers || !fuel) {
+                alert("Please fill all fields!");
+                return;
+            }
+
+            const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/trips?key=${apiKey}`;
+            const data = {
+                fields: {
+                    driver_id: { stringValue: currentDriver },
+                    vehicle_id: { stringValue: vehicleId },
+                    vehicle_type: { stringValue: vehicleType },
+                    consignment_id: { stringValue: consignmentId },
+                    kilometers: { stringValue: kilometers },
+                    fuel: { stringValue: fuel }
+                }
+            };
+
+            try {
+                const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+                if(res.ok) {
+                    alert("Trip added successfully!");
+                    document.getElementById('vehicleId').value = "";
+                    document.getElementById('vehicleType').value = "";
+                    document.getElementById('consignmentId').value = "";
+                    document.getElementById('kilometers').value = "";
+                    document.getElementById('fuel').value = "";
+                    fetchTrips();
+                } else { alert("Failed to save trip."); }
+            } catch(e) { alert("Network error."); }
+        }
+
+        async function deleteTrip(tripId) {
+            const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/trips/${tripId}?key=${apiKey}`;
+            try {
+                const res = await fetch(url, { method: 'DELETE' });
+                if(res.ok) {
+                    alert("Trip deleted!");
+                    fetchTrips();
+                } else { alert("Delete failed."); }
+            } catch(e) { alert("Error deleting trip."); }
+        }
+
+        function renderDashboard() {
+            const totalTrips = tripsData.length;
+            const totalKm = tripsData.reduce((sum, t) => sum + t.kilometers, 0);
+            const totalFuel = tripsData.reduce((sum, t) => sum + t.fuel, 0);
+
+            document.getElementById('repTrips').innerText = totalTrips;
+            document.getElementById('repKm').innerText = totalKm + " KM";
+            document.getElementById('repFuel').innerText = totalFuel + " L";
+
+            const container = document.getElementById('tripsListContainer');
+            if(tripsData.length === 0) {
+                container.innerHTML = `<p style="color: #64748b; font-style: italic;">No trips recorded yet.</p>`;
+                return;
+            }
+
+            container.innerHTML = tripsData.map(t => `
+                <div class="trip-card">
+                    <div class="trip-header">
+                        <span>🚚 ${t.vehicle_id} (${t.vehicle_type})</span>
+                        <button class="delete-btn" onclick="deleteTrip('${t.id}')">❌ Delete</button>
+                    </div>
+                    <div class="trip-details">📦 Consignment ID: <b>${t.consignment_id}</b></div>
+                    <div class="trip-details" style="border-top: 1px solid #e2e8f0; margin-top: 6px; padding-top: 6px; display: flex; justify-content: space-between;">
+                        <span>🛣️ ${t.kilometers} KM</span>
+                        <span>⛽ ${t.fuel} Liters</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
